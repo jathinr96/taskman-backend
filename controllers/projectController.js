@@ -101,3 +101,43 @@ exports.addMember = async (req, res) => {
         res.status(500).send('Server Error');
     }
 };
+
+// @desc    Remove member from project
+// @route   DELETE /api/projects/:id/members/:userId
+// @access  Private
+exports.removeMember = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const project = await Project.findById(req.params.id);
+
+        if (!project) {
+            return res.status(404).json({ msg: 'Project not found' });
+        }
+
+        // Only owner can remove members
+        if (project.owner.toString() !== req.user.id) {
+            return res.status(401).json({ msg: 'Not authorized' });
+        }
+
+        // Cannot remove the owner
+        if (userId === project.owner.toString()) {
+            return res.status(400).json({ msg: 'Cannot remove the project owner' });
+        }
+
+        // Check if user is a member
+        if (!project.members.includes(userId)) {
+            return res.status(400).json({ msg: 'User is not a member' });
+        }
+
+        project.members = project.members.filter(m => m.toString() !== userId);
+        await project.save();
+
+        const updatedProject = await Project.findById(req.params.id)
+            .populate('members', 'name email profilePicture');
+
+        res.json(updatedProject.members);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+};
