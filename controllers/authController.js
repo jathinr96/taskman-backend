@@ -65,4 +65,34 @@ const loginUser = async (req, res) => {
     }
 };
 
-module.exports = { registerUser, loginUser };
+// @desc    Search users by name (partial match)
+// @route   GET /api/auth/search?q=...
+// @access  Private
+const searchUsers = async (req, res) => {
+    const { q } = req.query;
+
+    if (!q || q.trim().length < 2) {
+        return res.status(400).json({ message: 'Search query must be at least 2 characters' });
+    }
+
+    try {
+        // Create case-insensitive regex for partial matching
+        const regex = new RegExp(q.trim(), 'i');
+
+        const users = await User.find({
+            $or: [
+                { name: { $regex: regex } },
+                { email: { $regex: regex } }
+            ]
+        })
+            .select('_id name email')
+            .limit(10);
+
+        res.json(users);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+module.exports = { registerUser, loginUser, searchUsers };
+
