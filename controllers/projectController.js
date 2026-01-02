@@ -93,7 +93,16 @@ exports.addMember = async (req, res) => {
         await project.save();
 
         const updatedProject = await Project.findById(req.params.id)
-            .populate('members', 'name email profilePicture');
+            .populate('members', 'name email profilePicture')
+            .populate('owner', 'name email profilePicture');
+
+        // Emit socket event to notify the added user
+        if (req.io) {
+            req.io.emit('member:added', {
+                userId,
+                project: updatedProject
+            });
+        }
 
         res.json(updatedProject.members);
     } catch (err) {
@@ -134,6 +143,14 @@ exports.removeMember = async (req, res) => {
 
         const updatedProject = await Project.findById(req.params.id)
             .populate('members', 'name email profilePicture');
+
+        // Emit socket event to notify the removed user
+        if (req.io) {
+            req.io.emit('member:removed', {
+                userId,
+                projectId: req.params.id
+            });
+        }
 
         res.json(updatedProject.members);
     } catch (err) {
