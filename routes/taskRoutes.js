@@ -12,24 +12,39 @@ const {
     searchTasks
 } = require('../controllers/taskController');
 const { protect } = require('../middleware/authMiddleware');
+const {
+    validateBody,
+    validateQuery,
+    validateParams,
+    createTaskSchema,
+    updateTaskSchema,
+    assignUserSchema,
+    addCommentSchema,
+    searchQuerySchema,
+    paginationQuerySchema,
+    idParamSchema,
+    projectIdParamSchema,
+    memberParamSchema
+} = require('../middleware/validation');
 
 router.use(protect); // Protect all routes
 
 // Search route (must come before /:id to avoid conflict)
-router.get('/search', searchTasks);
+router.get('/search', validateQuery(searchQuerySchema), searchTasks);
 
 // Task CRUD
-router.post('/', createTask);
-router.get('/project/:projectId', getTasksByProject);
-router.get('/:id', getTaskById);
-router.put('/:id', updateTask);
-router.delete('/:id', deleteTask);
+router.post('/', validateBody(createTaskSchema), createTask);
+router.get('/project/:projectId', validateParams(projectIdParamSchema), validateQuery(paginationQuerySchema), getTasksByProject);
+router.get('/:id', validateParams(idParamSchema), getTaskById);
+router.put('/:id', validateParams(idParamSchema), validateBody(updateTaskSchema), updateTask);
+router.delete('/:id', validateParams(idParamSchema), deleteTask);
 
 // Assignment
-router.post('/:id/assign', assignUser);
-router.delete('/:id/assign/:userId', unassignUser);
+router.post('/:id/assign', validateParams(idParamSchema), validateBody(assignUserSchema), assignUser);
+router.delete('/:id/assign/:userId', validateParams(memberParamSchema), unassignUser);
 
 // Comments
-router.post('/:id/comments', addComment);
+router.post('/:id/comments', validateParams(idParamSchema), validateBody(addCommentSchema), addComment);
 
 module.exports = router;
+
