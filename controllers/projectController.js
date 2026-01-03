@@ -117,7 +117,8 @@ exports.addMember = async (req, res) => {
 exports.removeMember = async (req, res) => {
     try {
         const { userId } = req.params;
-        const project = await Project.findById(req.params.id);
+        const projectId = req.params.id;
+        const project = await Project.findById(projectId);
 
         if (!project) {
             return res.status(404).json({ msg: 'Project not found' });
@@ -141,14 +142,21 @@ exports.removeMember = async (req, res) => {
         project.members = project.members.filter(m => m.toString() !== userId);
         await project.save();
 
-        const updatedProject = await Project.findById(req.params.id)
+        const updatedProject = await Project.findById(projectId)
             .populate('members', 'name email profilePicture');
 
-        // Emit socket event to notify the removed user
+        // Emit socket events
         if (req.io) {
+            // Notify the removed user to leave the project room
+            req.io.emit('presence:kick', {
+                userId,
+                projectId
+            });
+
+            // Notify all clients about the member removal
             req.io.emit('member:removed', {
                 userId,
-                projectId: req.params.id
+                projectId
             });
         }
 
