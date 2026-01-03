@@ -36,7 +36,10 @@ exports.createTask = async (req, res) => {
 
         // Emit socket event for real-time update
         if (req.io) {
+            // Emit to project room for ProjectDetail page
             req.io.to(`project:${project}`).emit('task:created', populatedTask);
+            // Also emit globally for Dashboard stats
+            req.io.emit('task:stats:changed', { projectId: project });
         }
 
         res.status(201).json(populatedTask);
@@ -152,7 +155,10 @@ exports.updateTask = async (req, res) => {
 
         // Emit socket event for real-time update
         if (req.io) {
+            // Emit to project room for ProjectDetail page
             req.io.to(`project:${task.project}`).emit('task:updated', populatedTask);
+            // Also emit globally for Dashboard stats
+            req.io.emit('task:stats:changed', { projectId: task.project.toString() });
         }
 
         res.json(populatedTask);
@@ -177,7 +183,10 @@ exports.deleteTask = async (req, res) => {
 
         // Emit socket event for real-time update
         if (req.io) {
+            // Emit to project room for ProjectDetail page
             req.io.to(`project:${projectId}`).emit('task:deleted', { taskId: req.params.id });
+            // Also emit globally for Dashboard stats
+            req.io.emit('task:stats:changed', { projectId: projectId.toString() });
         }
 
         res.json({ msg: 'Task removed' });
