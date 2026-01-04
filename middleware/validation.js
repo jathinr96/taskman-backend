@@ -94,6 +94,9 @@ const addCommentSchema = Joi.object({
         'string.min': 'Comment text is required',
         'string.max': 'Comment cannot exceed 1000 characters',
         'any.required': 'Comment text is required'
+    }),
+    reference: objectId.optional().allow(null).messages({
+        'string.pattern.base': 'Invalid reference comment ID format'
     })
 });
 

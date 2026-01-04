@@ -266,7 +266,7 @@ exports.unassignUser = async (req, res) => {
 // @access  Private
 exports.addComment = async (req, res) => {
     try {
-        const { text } = req.body;
+        const { text, reference } = req.body;
         const task = await Task.findById(req.params.id);
 
         if (!task) {
@@ -275,7 +275,8 @@ exports.addComment = async (req, res) => {
 
         task.comments.push({
             user: req.user.id,
-            text
+            text,
+            reference: reference || null
         });
 
         await task.save();

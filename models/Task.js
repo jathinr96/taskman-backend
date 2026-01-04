@@ -44,7 +44,12 @@ const taskSchema = new mongoose.Schema({
         createdAt: {
             type: Date,
             default: Date.now
-        }
+        },
+        reference: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Task.comments',
+            default: null
+        },
     }],
     createdAt: {
         type: Date,
