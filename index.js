@@ -7,6 +7,7 @@ const initSocket = require('./socket');
 const authRoutes = require('./routes/authRoutes');
 const projectRoutes = require('./routes/projectRoutes');
 const taskRoutes = require('./routes/taskRoutes');
+const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
 const server = http.createServer(app);
@@ -40,7 +41,12 @@ app.get('/', (req, res) => {
     res.send('Nuvacure Backend is running');
 });
 
+// Error Handling
+app.use(notFound);
+app.use(errorHandler);
+
 // Start Server
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
+
