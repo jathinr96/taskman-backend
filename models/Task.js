@@ -60,6 +60,6 @@ const taskSchema = new mongoose.Schema({
 // Indexes
 taskSchema.index({ project: 1 });
 taskSchema.index({ assignees: 1 });
-taskSchema.index({ title: 'text', description: 'text' }); // Text index for search
+taskSchema.index({ title: 'text', description: 'text', 'comments.text': 'text' }); // Text index for search
 
 module.exports = mongoose.model('Task', taskSchema);

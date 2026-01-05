@@ -112,6 +112,21 @@ const searchQuerySchema = Joi.object({
     projectId: objectId.optional()
 });
 
+const textSearchQuerySchema = Joi.object({
+    q: Joi.string().min(1).required().messages({
+        'string.min': 'Search query is required',
+        'any.required': 'Search query is required'
+    }),
+    projectId: objectId.optional(),
+    limit: Joi.number().integer().min(1).max(50).optional().default(20).messages({
+        'number.min': 'Limit must be at least 1',
+        'number.max': 'Limit cannot exceed 50'
+    }),
+    includeMatchDetails: Joi.string().valid('true', 'false').optional().default('true').messages({
+        'any.only': 'includeMatchDetails must be true or false'
+    })
+});
+
 const userSearchQuerySchema = Joi.object({
     q: Joi.string().min(2).required().messages({
         'string.min': 'Search query must be at least 2 characters',
@@ -184,6 +199,7 @@ module.exports = {
     assignUserSchema,
     addCommentSchema,
     searchQuerySchema,
+    textSearchQuerySchema,
     userSearchQuerySchema,
     paginationQuerySchema,
     idParamSchema,

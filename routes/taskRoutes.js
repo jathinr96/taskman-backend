@@ -9,7 +9,8 @@ const {
     assignUser,
     unassignUser,
     addComment,
-    searchTasks
+    searchTasks,
+    searchTasksText
 } = require('../controllers/taskController');
 const { protect } = require('../middleware/authMiddleware');
 const {
@@ -21,6 +22,7 @@ const {
     assignUserSchema,
     addCommentSchema,
     searchQuerySchema,
+    textSearchQuerySchema,
     paginationQuerySchema,
     idParamSchema,
     projectIdParamSchema,
@@ -29,8 +31,9 @@ const {
 
 router.use(protect); // Protect all routes
 
-// Search route (must come before /:id to avoid conflict)
+// Search routes
 router.get('/search', validateQuery(searchQuerySchema), searchTasks);
+router.get('/search/text', validateQuery(textSearchQuerySchema), searchTasksText);
 
 // Task CRUD
 router.post('/', validateBody(createTaskSchema), createTask);

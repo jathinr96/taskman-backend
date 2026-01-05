@@ -329,3 +329,262 @@ exports.searchTasks = async (req, res) => {
         res.status(500).send('Server Error');
     }
 };
+
+// @desc    Specialized text search across task titles, descriptions, and comments
+// @route   GET /api/tasks/search/text
+// @access  Private
+exports.searchTasksText = async (req, res) => {
+    try {
+        const { q, projectId, limit = 20, includeMatchDetails = 'true' } = req.query;
+
+        if (!q || q.trim().length === 0) {
+            return res.status(400).json({ msg: 'Search query required' });
+        }
+
+        const searchTerm = q.trim();
+        const searchRegex = new RegExp(searchTerm, 'i');
+        const resultLimit = Math.min(parseInt(limit) || 20, 50);
+        const showMatchDetails = includeMatchDetails === 'true';
+
+        // Build the base query
+        let matchQuery = {};
+
+        if (projectId) {
+            const mongoose = require('mongoose');
+            if (!mongoose.Types.ObjectId.isValid(projectId)) {
+                return res.status(400).json({ msg: 'Invalid project ID format' });
+            }
+            matchQuery.project = new mongoose.Types.ObjectId(projectId);
+        }
+
+        // Use aggregation pipeline for more detailed search results
+        const pipeline = [
+            // Match by project if specified
+            ...(Object.keys(matchQuery).length > 0 ? [{ $match: matchQuery }] : []),
+
+            // Add computed fields for matching
+            {
+                $addFields: {
+                    titleMatch: { $regexMatch: { input: '$title', regex: searchRegex } },
+                    descriptionMatch: {
+                        $cond: [
+                            { $ifNull: ['$description', false] },
+                            { $regexMatch: { input: '$description', regex: searchRegex } },
+                            false
+                        ]
+                    },
+                    matchingComments: {
+                        $filter: {
+                            input: { $ifNull: ['$comments', []] },
+                            as: 'comment',
+                            cond: { $regexMatch: { input: '$$comment.text', regex: searchRegex } }
+                        }
+                    }
+                }
+            },
+
+            // Add hasCommentMatch field
+            {
+                $addFields: {
+                    hasCommentMatch: { $gt: [{ $size: '$matchingComments' }, 0] }
+                }
+            },
+
+            // Filter to only include tasks with at least one match
+            {
+                $match: {
+                    $or: [
+                        { titleMatch: true },
+                        { descriptionMatch: true },
+                        { hasCommentMatch: true }
+                    ]
+                }
+            },
+
+            // Add match type array and score
+            {
+                $addFields: {
+                    matchedFields: {
+                        $filter: {
+                            input: [
+                                { $cond: [{ $eq: ['$titleMatch', true] }, 'title', null] },
+                                { $cond: [{ $eq: ['$descriptionMatch', true] }, 'description', null] },
+                                { $cond: [{ $eq: ['$hasCommentMatch', true] }, 'comments', null] }
+                            ],
+                            as: 'field',
+                            cond: { $ne: ['$$field', null] }
+                        }
+                    },
+                    // Score: title matches = 3, description matches = 2, comment matches = 1
+                    relevanceScore: {
+                        $add: [
+                            { $cond: [{ $eq: ['$titleMatch', true] }, 3, 0] },
+                            { $cond: [{ $eq: ['$descriptionMatch', true] }, 2, 0] },
+                            { $cond: [{ $eq: ['$hasCommentMatch', true] }, 1, 0] }
+                        ]
+                    }
+                }
+            },
+
+            // Sort by relevance score (descending) then by creation date (descending)
+            { $sort: { relevanceScore: -1, createdAt: -1 } },
+
+            // Limit results
+            { $limit: resultLimit },
+
+            // Lookup to populate project
+            {
+                $lookup: {
+                    from: 'projects',
+                    localField: 'project',
+                    foreignField: '_id',
+                    as: 'projectData',
+                    pipeline: [
+                        { $project: { name: 1 } }
+                    ]
+                }
+            },
+
+            // Lookup to populate assignees
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'assignees',
+                    foreignField: '_id',
+                    as: 'assigneesData',
+                    pipeline: [
+                        { $project: { name: 1, email: 1, profilePicture: 1 } }
+                    ]
+                }
+            },
+
+            // Lookup to populate comment users
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'comments.user',
+                    foreignField: '_id',
+                    as: 'commentUsers',
+                    pipeline: [
+                        { $project: { name: 1, email: 1, profilePicture: 1 } }
+                    ]
+                }
+            },
+
+            {
+                $project: {
+                    _id: 1,
+                    title: 1,
+                    description: 1,
+                    status: 1,
+                    priority: 1,
+                    dueDate: 1,
+                    createdAt: 1,
+                    project: { $arrayElemAt: ['$projectData', 0] },
+                    assignees: '$assigneesData',
+                    comments: {
+                        $map: {
+                            input: '$comments',
+                            as: 'comment',
+                            in: {
+                                _id: '$$comment._id',
+                                text: '$$comment.text',
+                                createdAt: '$$comment.createdAt',
+                                reference: '$$comment.reference',
+                                user: {
+                                    $arrayElemAt: [
+                                        {
+                                            $filter: {
+                                                input: '$commentUsers',
+                                                as: 'u',
+                                                cond: { $eq: ['$$u._id', '$$comment.user'] }
+                                            }
+                                        },
+                                        0
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    matchDetails: {
+                        $cond: [
+                            showMatchDetails,
+                            {
+                                matchedFields: '$matchedFields',
+                                relevanceScore: '$relevanceScore',
+                                matchingCommentCount: { $size: '$matchingComments' },
+                                matchingCommentSnippets: {
+                                    $map: {
+                                        input: { $slice: ['$matchingComments', 3] },
+                                        as: 'mc',
+                                        in: {
+                                            _id: '$$mc._id',
+                                            text: { $substrCP: ['$$mc.text', 0, 100] }
+                                        }
+                                    }
+                                }
+                            },
+                            '$$REMOVE'
+                        ]
+                    }
+                }
+            }
+        ];
+
+        const results = await Task.aggregate(pipeline);
+
+        // Get total count for the search
+        const countPipeline = [
+            ...(Object.keys(matchQuery).length > 0 ? [{ $match: matchQuery }] : []),
+            {
+                $addFields: {
+                    titleMatch: { $regexMatch: { input: '$title', regex: searchRegex } },
+                    descriptionMatch: {
+                        $cond: [
+                            { $ifNull: ['$description', false] },
+                            { $regexMatch: { input: '$description', regex: searchRegex } },
+                            false
+                        ]
+                    },
+                    hasCommentMatch: {
+                        $gt: [
+                            {
+                                $size: {
+                                    $filter: {
+                                        input: { $ifNull: ['$comments', []] },
+                                        as: 'comment',
+                                        cond: { $regexMatch: { input: '$$comment.text', regex: searchRegex } }
+                                    }
+                                }
+                            },
+                            0
+                        ]
+                    }
+                }
+            },
+            {
+                $match: {
+                    $or: [
+                        { titleMatch: true },
+                        { descriptionMatch: true },
+                        { hasCommentMatch: true }
+                    ]
+                }
+            },
+            { $count: 'total' }
+        ];
+
+        const countResult = await Task.aggregate(countPipeline);
+        const totalCount = countResult.length > 0 ? countResult[0].total : 0;
+
+        res.json({
+            query: searchTerm,
+            totalResults: totalCount,
+            returnedResults: results.length,
+            results
+        });
+    } catch (err) {
+        console.error('Text search error:', err.message);
+        res.status(500).json({ msg: 'Server Error', error: err.message });
+    }
+};
