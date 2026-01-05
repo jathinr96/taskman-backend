@@ -10,7 +10,7 @@ const globalOnlineUsers = new Map(); // userId -> { userId, socketId, name, curr
 function initSocket(server) {
     const io = new Server(server, {
         cors: {
-            origin: ['http://localhost:5173', 'http://localhost:3000'],
+            origin: ['http://localhost:5173', 'http://localhost:3000', 'https://frontend-three-ivory-4euv7eoe6h.vercel.app'],
             methods: ['GET', 'POST'],
             credentials: true
         }

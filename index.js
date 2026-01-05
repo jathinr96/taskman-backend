@@ -21,7 +21,7 @@ const io = initSocket(server);
 
 // Middleware
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://localhost:3000'],
+    origin: ['http://localhost:5173', 'http://localhost:3000', 'https://frontend-three-ivory-4euv7eoe6h.vercel.app'],
     credentials: true
 }));
 app.use(express.json());
