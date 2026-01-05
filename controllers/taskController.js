@@ -104,6 +104,120 @@ exports.getTasksByProject = async (req, res) => {
     }
 };
 
+// @desc    Get all tasks with cursor-based pagination
+// @route   GET /api/tasks
+// @access  Private
+exports.getAllTasks = async (req, res) => {
+    try {
+        const {
+            cursor,
+            limit = 20,
+            status,
+            priority,
+            assignee,
+            projectId,
+            sortBy = 'createdAt',
+            sortOrder = 'desc'
+        } = req.query;
+
+        // Get all projects where the user is a member
+        const userProjects = await Project.find({ members: req.user.id }).select('_id');
+        const projectIds = userProjects.map(p => p._id);
+
+        if (projectIds.length === 0) {
+            return res.json({
+                tasks: [],
+                nextCursor: null,
+                hasMore: false,
+                total: 0
+            });
+        }
+
+        // Build query
+        let query = { project: { $in: projectIds } };
+
+        // Filter by specific project if provided
+        if (projectId) {
+            if (!projectIds.some(id => id.toString() === projectId)) {
+                return res.status(401).json({ msg: 'Not authorized to view tasks from this project' });
+            }
+            query.project = projectId;
+        }
+
+        // Filter by status
+        if (status) {
+            query.status = status;
+        }
+
+        // Filter by priority
+        if (priority) {
+            query.priority = priority;
+        }
+
+        // Filter by assignee
+        if (assignee) {
+            query.assignees = assignee;
+        }
+
+        // Determine sort field and order
+        const validSortFields = ['createdAt', 'dueDate', 'priority', 'title'];
+        const sortField = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
+        const order = sortOrder === 'asc' ? 1 : -1;
+
+        // Cursor-based pagination
+        if (cursor) {
+            if (order === -1) {
+                query._id = { $lt: cursor };
+            } else {
+                query._id = { $gt: cursor };
+            }
+        }
+
+        // Get total count for metadata
+        const totalCount = await Task.countDocuments({
+            project: projectId ? projectId : { $in: projectIds },
+            ...(status && { status }),
+            ...(priority && { priority }),
+            ...(assignee && { assignees: assignee })
+        });
+
+        // Fetch tasks with pagination
+        const tasks = await Task.find(query)
+            .populate('assignees', 'name email profilePicture')
+            .populate('project', 'name')
+            .populate('comments.user', 'name email profilePicture')
+            .sort({ [sortField]: order, _id: order })
+            .limit(parseInt(limit) + 1);
+
+        const hasMore = tasks.length > parseInt(limit);
+        const resultTasks = hasMore ? tasks.slice(0, -1) : tasks;
+        const nextCursor = hasMore && resultTasks.length > 0
+            ? resultTasks[resultTasks.length - 1]._id
+            : null;
+
+        res.json({
+            tasks: resultTasks,
+            nextCursor,
+            hasMore,
+            total: totalCount,
+            meta: {
+                limit: parseInt(limit),
+                sortBy: sortField,
+                sortOrder: order === -1 ? 'desc' : 'asc',
+                filters: {
+                    status: status || null,
+                    priority: priority || null,
+                    assignee: assignee || null,
+                    projectId: projectId || null
+                }
+            }
+        });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+};
+
 // @desc    Get single task
 // @route   GET /api/tasks/:id
 // @access  Private

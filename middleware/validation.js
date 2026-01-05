@@ -141,6 +141,20 @@ const paginationQuerySchema = Joi.object({
     assignee: objectId.optional()
 });
 
+const allTasksPaginationSchema = Joi.object({
+    cursor: objectId.optional(),
+    limit: Joi.number().integer().min(1).max(100).optional().default(20).messages({
+        'number.min': 'Limit must be at least 1',
+        'number.max': 'Limit cannot exceed 100'
+    }),
+    status: Joi.string().valid('todo', 'in-progress', 'done').optional(),
+    priority: Joi.string().valid('low', 'medium', 'high').optional(),
+    assignee: objectId.optional(),
+    projectId: objectId.optional(),
+    sortBy: Joi.string().valid('createdAt', 'dueDate', 'priority', 'title').optional().default('createdAt'),
+    sortOrder: Joi.string().valid('asc', 'desc').optional().default('desc')
+});
+
 // ========================
 // Validation Middleware
 // ========================
@@ -202,6 +216,7 @@ module.exports = {
     textSearchQuerySchema,
     userSearchQuerySchema,
     paginationQuerySchema,
+    allTasksPaginationSchema,
     idParamSchema,
     projectIdParamSchema,
     memberParamSchema,

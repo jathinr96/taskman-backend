@@ -3,6 +3,7 @@ const router = express.Router();
 const {
     createTask,
     getTasksByProject,
+    getAllTasks,
     getTaskById,
     updateTask,
     deleteTask,
@@ -24,6 +25,7 @@ const {
     searchQuerySchema,
     textSearchQuerySchema,
     paginationQuerySchema,
+    allTasksPaginationSchema,
     idParamSchema,
     projectIdParamSchema,
     memberParamSchema
@@ -36,6 +38,7 @@ router.get('/search', validateQuery(searchQuerySchema), searchTasks);
 router.get('/search/text', validateQuery(textSearchQuerySchema), searchTasksText);
 
 // Task CRUD
+router.get('/', validateQuery(allTasksPaginationSchema), getAllTasks);
 router.post('/', validateBody(createTaskSchema), createTask);
 router.get('/project/:projectId', validateParams(projectIdParamSchema), validateQuery(paginationQuerySchema), getTasksByProject);
 router.get('/:id', validateParams(idParamSchema), getTaskById);
